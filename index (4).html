@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"><title>Mahallem</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#15803d"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"><script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>#map{isolation:isolate}body{background:#f3f4f2;font-family:system-ui,sans-serif;padding-bottom:88px}.sec{display:none}.sec.on{display:block}.card{background:#fff;border-radius:18px;box-shadow:0 1px 3px #0001}.tab.on{color:#15803d;font-weight:700}input,textarea,select{border:1px solid #e5e7eb;border-radius:12px;padding:8px;font-size:14px;width:100%}.btn{background:#15803d;color:#fff;border-radius:12px;padding:8px 14px;font-size:14px;font-weight:600}.org{background:#f97316}.emp{font-size:13px;color:#6b7280}</style></head>
+<body>
+<header class="bg-green-700 text-white px-4 py-3 sticky top-0 z-20 flex justify-between items-center">
+<div><div class="font-extrabold text-lg">🏡 Mahallem</div><div class="text-xs text-green-100">Fatih Sultan Mehmet Parkı çevresi · Şanlıurfa</div></div>
+<button id="who" onclick="authBtn()" class="text-xs bg-green-800 rounded-full px-3 py-1.5"></button></header>
+<main class="max-w-xl mx-auto p-4">
+<section id="auth" class="sec"><div class="card p-4 space-y-2"><div class="font-bold" id="authT">Giriş yap</div>
+<input id="an" placeholder="Ad Soyad" class="reg"><input id="ap" placeholder="Telefon (isteğe bağlı)" class="reg"><input id="ae" type="email" placeholder="Gmail / e-posta"><input id="aw" type="password" placeholder="Şifre (en az 6 karakter)">
+<button class="btn w-full" onclick="doAuth()" id="authB">Giriş yap</button><button class="emp underline" onclick="toggleReg()" id="authS">Hesabın yok mu? Kayıt ol</button><p id="authM" class="text-xs text-red-600"></p></div></section>
+<section id="home" class="sec on"><div id="feedF" class="flex gap-2 mb-3 text-xs"></div><div id="feed" class="space-y-3"></div></section>
+<section id="esnaf" class="sec"><h2 class="font-bold text-lg mb-3">Mahalle Pazarı</h2><div id="shops" class="space-y-4"></div></section>
+<section id="imece" class="sec"><h2 class="font-bold text-lg mb-3">İmece Panosu</h2>
+<div class="card p-4 mb-4 space-y-2"><select id="pc"><option>🔧 Ödünç eşya</option><option>🤝 Yardımlaşma</option><option>📚 Ders arkadaşı</option><option>⚽ Etkinlik / maç</option><option>🐾 Kayıp / bulunan</option></select><input id="pt" placeholder="Başlık"><textarea id="pb" rows="2" placeholder="Detay"></textarea>
+<div class="flex items-center gap-2"><label class="text-xs bg-gray-100 rounded-xl px-3 py-2 cursor-pointer">📷 Fotoğraf<input type="file" accept="image/*" class="hidden" onchange="pick(this,'post')"></label><span id="pn" class="text-xs text-gray-500 flex-1"></span><button class="btn org" onclick="addPost()">Paylaş</button></div></div><div id="posts" class="space-y-3"></div></section>
+<section id="etk" class="sec"><h2 class="font-bold text-lg mb-3">Etkinlikler</h2><div id="events" class="space-y-3 mb-6"></div><h2 class="font-bold text-lg mb-3">Anketler</h2><div id="polls" class="space-y-3"></div></section>
+<section id="rehber" class="sec"><h2 class="font-bold text-lg mb-3">Rehber</h2>
+<div class="card p-4 mb-3"><div class="font-semibold">📍 Konumum</div><p id="loc" class="emp mb-2">Konum izni verirsen yol tarifi bulunduğun yerden başlar.</p><button class="btn" onclick="locate()">Konumumu bul</button></div>
+<div class="card p-4 mb-3"><div class="font-semibold mb-2">🗺️ Yakınımdaki Yerler</div><div id="mapChips" class="flex gap-2 overflow-x-auto pb-2 text-xs"></div><div id="map" style="height:300px;border-radius:14px" class="mb-2"></div><p id="mapMsg" class="emp mb-2"></p><div id="mapList" class="space-y-2 text-sm"></div><button class="btn mt-2 text-xs" onclick="mapWide()">Daha geniş ara</button></div>
+<div class="card p-4 mb-3"><div class="font-semibold mb-2">⚽ Park &amp; Spor</div><div class="space-y-2 text-sm" id="parkL"></div></div><div id="places" class="space-y-3 mb-3"></div>
+<div class="card p-4 mb-3"><a id="eczane" target="_blank" class="text-sm text-orange-600 underline">💊 Nöbetçi eczaneleri haritada gör</a></div>
+<div class="card p-4"><div class="font-semibold mb-2">☎️ Numaralar</div><div id="tel" class="grid grid-cols-2 gap-2 text-sm"></div></div></section>
+<section id="admin" class="sec"><h2 class="font-bold text-lg mb-3">🛡️ Yönetici Paneli</h2><div id="adminBox"></div></section>
+</main>
+<nav class="fixed bottom-0 inset-x-0 bg-white border-t z-30 grid grid-cols-6 text-[10px] text-gray-500" id="nav"></nav>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendEmailVerification} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,doc,setDoc,updateDoc,deleteDoc,getDoc,onSnapshot,arrayUnion,arrayRemove,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyBsPY6aYsK6LPWnVNVXMfq2oOTAWQ5a-1s",authDomain:"mahallem-f556f.firebaseapp.com",projectId:"mahallem-f556f",storageBucket:"mahallem-f556f.firebasestorage.app",messagingSenderId:"154471537800",appId:"1:154471537800:web:9f25f06c15a3b55398933d"});
+const auth=getAuth(app),db=getFirestore(app);
+const $=id=>document.getElementById(id),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])),V=i=>$(i).value.trim();
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let me=null,adm=false,reg=true,filt="Tümü",pos=null,ph={},prof={};
+const S={anns:[],shops:[],places:[],events:[],polls:[],posts:[]};
+const tabs=[["home","🏠","Akış"],["esnaf","🛒","Esnaf"],["imece","🤝","İmece"],["etk","📅","Etkinlik"],["rehber","🗺️","Rehber"],["admin","🛡️","Yönetici"]];
+$("nav").innerHTML=tabs.map(t=>`<button data-t="${t[0]}" onclick="go('${t[0]}')" class="tab py-2"><div class="text-xl">${t[1]}</div>${t[2]}</button>`).join("");
+const go=t=>{if(t=="rehber")setTimeout(()=>window.initMap&&window.initMap(),60);document.querySelectorAll(".sec").forEach(s=>s.classList.toggle("on",s.id==t));document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.t==t));scrollTo(0,0)};go("home");
+$("tel").innerHTML=[["Acil","112"],["Polis","155"],["İtfaiye","110"],["Jandarma","156"]].map(t=>`<a href="tel:${t[1]}" class="border rounded-xl px-3 py-2 flex justify-between"><span>${t[0]}</span><b class="text-orange-600">${t[1]}</b></a>`).join("");
+const mp=q=>"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(q);
+$("eczane").href=mp("nöbetçi eczane Şanlıurfa");
+$("parkL").innerHTML=[["🌳 Fatih Sultan Mehmet Parkı","Fatih Sultan Mehmet Parkı Şanlıurfa"],["🚶 Yürüyüş pistleri","yürüyüş yolu Şanlıurfa"],["🏟️ Spor tesisleri","spor tesisi Şanlıurfa"]].map(p=>`<a target="_blank" href="${mp(p[1])}" class="flex justify-between border rounded-xl px-3 py-2"><span>${p[0]}</span><span class="text-green-700">Haritada aç →</span></a>`).join("");
+const empty=t=>`<p class="emp">${t}</p>`,dt=s=>s?new Date(s).toLocaleString("tr-TR",{dateStyle:"medium",timeStyle:"short"}):"";
+const rmB=(c,id)=>adm?`<button class="text-xs text-red-600 mt-2" onclick="rm('${c}','${id}')">🗑 Sil</button>`:"";
+const need=()=>{if(!me){go("auth");return false}return true};
+function render(){
+ $("who").textContent=me?(adm?"🛡️ Yönetici · Çıkış":"Çıkış yap"):"Giriş / Kayıt";
+ $("feedF").innerHTML=["Tümü","Duyuru","Etkinlik"].map(f=>`<button onclick="filt='${f}';render()" class="px-3 py-1 rounded-full ${f==filt?"bg-green-700 text-white":"bg-white"}">${f}</button>`).join("");
+ const a=[...S.anns].sort((x,y)=>(y.pin?1:0)-(x.pin?1:0)).map(x=>({t:"Duyuru",pin:x.pin,h:`<div class="text-xs text-orange-600 font-semibold">${x.pin?"⭐ Öne çıkan":"📢 Duyuru"}</div><div class="font-bold">${esc(x.title)}</div><p class="text-sm text-gray-600">${esc(x.body)}</p>${rmB("anns",x.id)}`}));
+ const e=S.events.map(x=>({t:"Etkinlik",h:`<div class="text-xs text-green-700 font-semibold">📅 ${dt(x.date)}</div><div class="font-bold">${esc(x.title)}</div><p class="text-sm text-gray-600">${esc(x.place)}</p>`}));
+ $("feed").innerHTML=[...a,...e].filter(x=>filt=="Tümü"||x.t==filt).map(x=>`<div class="card p-4 ${x.pin?"ring-2 ring-orange-400":""}">${x.h}</div>`).join("")||empty("Henüz duyuru yok.");
+ $("shops").innerHTML=S.shops.map(s=>`<div class="card overflow-hidden">${s.photo?`<img src="${s.photo}" class="w-full h-40 object-cover">`:""}<div class="p-4"><div class="font-bold">${esc(s.name)}</div><p class="text-sm text-gray-600">${esc(s.desc)}</p>${s.tel?`<a target="_blank" href="https://wa.me/${esc(s.tel.replace(/\D/g,""))}" class="mt-3 block text-center btn">💬 WhatsApp ile iletişim</a>`:""}${rmB("shops",s.id)}</div></div>`).join("")||empty("Henüz esnaf eklenmedi.");
+ $("posts").innerHTML=S.posts.filter(p=>adm||(p.reports||[]).length<3).map(p=>{const rc=(p.reports||[]).length;return `<div class="card p-4 ${adm&&rc?"ring-2 ring-red-400":""}"><div class="flex justify-between text-xs text-gray-500"><span>${esc(p.cat)}</span><span>${esc(p.author)} · ${dt(p.at)}</span></div><div class="font-bold mt-1">${esc(p.title)}</div><p class="text-sm text-gray-600">${esc(p.body)}</p>${p.photo?`<img src="${p.photo}" class="mt-2 rounded-xl max-h-60 w-full object-cover">`:""}
+ <div class="mt-3 space-y-1">${(p.comments||[]).map(c=>`<div class="text-xs bg-gray-50 rounded-lg px-2 py-1"><b>${esc(c.a)}:</b> ${esc(c.t)}</div>`).join("")}</div>
+ ${me?`<div class="flex gap-2 mt-2"><input id="c_${p.id}" placeholder="Yorum yaz..."><button class="btn" onclick="comment('${p.id}')">Gönder</button></div><button class="text-xs text-gray-500 mt-2" onclick="report('${p.id}')">🚩 Şikayet et</button>`:""}${adm?`<span class="text-xs text-red-600 ml-3">${rc} şikayet</span>`:""}${(adm||p.uid==me?.uid)?`<button class="text-xs text-red-600 ml-3" onclick="rm('posts','${p.id}')">🗑 Sil</button>`:""}</div>`}).join("")||empty("Henüz ilan yok.");
+ $("events").innerHTML=S.events.map(x=>{const g=x.going||[],on=me&&g.includes(me.uid);return `<div class="card p-4"><div class="text-xs text-green-700 font-semibold">${dt(x.date)}</div><div class="font-bold">${esc(x.title)}</div><div class="text-sm text-gray-600">${esc(x.place)}</div><div class="flex items-center gap-3 mt-2"><button class="btn ${on?"org":""}" onclick="going('${x.id}')">${on?"Katılıyorum ✓":"Katılıyorum"}</button><span class="text-xs">${g.length} kişi</span></div>${rmB("events",x.id)}</div>`}).join("")||empty("Etkinlik yok.");
+ $("polls").innerHTML=S.polls.map(p=>{const v=p.votes||{},n=Object.keys(v).length,my=me?v[me.uid]:undefined;return `<div class="card p-4"><div class="font-bold mb-2">${esc(p.q)}</div>${p.opts.map((o,i)=>{const c=Object.values(v).filter(x=>x===i).length,pc=n?Math.round(c*100/n):0;return `<button onclick="vote('${p.id}',${i})" class="w-full text-left mb-1.5 rounded-xl border relative overflow-hidden px-3 py-2 text-sm ${my===i?"border-green-600":""}"><span class="absolute inset-y-0 left-0 bg-green-100" style="width:${pc}%"></span><span class="relative flex justify-between"><span>${esc(o)}</span><b>${pc}%</b></span></button>`}).join("")}<div class="emp">${n} oy</div>${rmB("polls",p.id)}</div>`}).join("")||empty("Anket yok.");
+ $("places").innerHTML=S.places.map(p=>`<div class="card overflow-hidden">${p.photo?`<img src="${p.photo}" class="w-full h-40 object-cover">`:""}<div class="p-4 flex justify-between items-center"><div class="font-bold">📍 ${esc(p.name)}</div><a target="_blank" class="btn text-xs" href="${pos?`https://www.google.com/maps/dir/?api=1&origin=${pos}&destination=${encodeURIComponent(p.q||p.name+" Şanlıurfa")}`:mp(p.q||p.name+" Şanlıurfa")}">${pos?"Yol tarifi":"Haritada aç"}</a></div>${adm?`<div class="px-4 pb-3">${rmB("places",p.id)}</div>`:""}</div>`).join("");
+ renderAdmin()}
+function renderAdmin(){const b=$("adminBox");if(!adm){delete b.dataset.ok;b.innerHTML=`<div class="card p-4 text-sm">Bu alan yalnızca yöneticiye açıktır.${me&&!me.emailVerified?`<br><br><b>E-postan henüz doğrulanmamış.</b><br>Gmail’deki doğrulama bağlantısına dokun, sonra aşağıdaki düğmeye bas.<div class="flex gap-2 mt-3"><button class="btn" onclick="resendV()">Doğrulama e-postasını tekrar gönder</button><button class="btn org" onclick="location.reload()">Doğruladım, yenile</button></div>`:""}</div>`;return}
+ if(b.dataset.ok)return;b.dataset.ok=1;
+ const fm=(t,body,fn)=>`<div class="card p-4 mb-3 space-y-2"><div class="font-semibold">${t}</div>${body}<button class="btn org" onclick="${fn}()">Ekle</button></div>`,pk=k=>`<label class="text-xs bg-gray-100 rounded-xl px-3 py-2 cursor-pointer inline-block">📷 Fotoğraf<input type="file" accept="image/*" class="hidden" onchange="pick(this,'${k}')"></label>`;
+ b.innerHTML=fm("📢 Duyuru",`<input id="a1" placeholder="Başlık"><textarea id="a2" rows="2" placeholder="Metin"></textarea><label class="text-sm"><input type="checkbox" id="a3" style="width:auto"> Öne çıkar</label>`,"addAnn")+fm("🛒 Esnaf",`<input id="s1" placeholder="Esnaf adı"><input id="s2" placeholder="Açıklama"><input id="s3" placeholder="WhatsApp (905xxxxxxxxx)">${pk("shop")}`,"addShop")+fm("📍 Mekan",`<input id="m1" placeholder="Mekan adı"><input id="m2" placeholder="Harita arama metni (isteğe bağlı)">${pk("place")}`,"addPlace")+fm("📅 Etkinlik",`<input id="e1" placeholder="Etkinlik adı"><input id="e2" type="datetime-local"><input id="e3" placeholder="Yer">`,"addEvent")+fm("📊 Anket",`<input id="q1" placeholder="Soru"><input id="q2" placeholder="Seçenekler, virgülle ayır">`,"addPoll")}
+const G=f=>async(...a)=>{try{await f(...a)}catch(e){console.error(e);alert("İşlem yapılamadı: "+(e.code||e.message))}};
+const put=(c,o)=>setDoc(doc(db,c,uid()),{...o,at:Date.now()}),clr=(...i)=>i.forEach(x=>$(x).value="");
+const fn={
+ rm:G(async(c,id)=>{if(confirm("Silinsin mi?"))await deleteDoc(doc(db,c,id))}),
+ addAnn:G(async()=>{if(!V("a1"))return;await put("anns",{title:V("a1"),body:V("a2"),pin:$("a3").checked});clr("a1","a2")}),
+ addShop:G(async()=>{if(!V("s1"))return;await put("shops",{name:V("s1"),desc:V("s2"),tel:V("s3"),photo:ph.shop||""});ph.shop="";clr("s1","s2","s3")}),
+ addPlace:G(async()=>{if(!V("m1"))return;await put("places",{name:V("m1"),q:V("m2"),photo:ph.place||""});ph.place="";clr("m1","m2")}),
+ addEvent:G(async()=>{if(!V("e1")||!V("e2"))return;await put("events",{title:V("e1"),date:new Date(V("e2")).getTime(),place:V("e3"),going:[]});clr("e1","e2","e3")}),
+ addPoll:G(async()=>{const o=V("q2").split(",").map(x=>x.trim()).filter(Boolean);if(!V("q1")||o.length<2)return;await put("polls",{q:V("q1"),opts:o,votes:{}});clr("q1","q2")}),
+ addPost:G(async()=>{if(!need()||!V("pt"))return;await put("posts",{uid:me.uid,cat:$("pc").value,title:V("pt"),body:V("pb"),photo:ph.post||"",author:prof.name||"Komşu",comments:[],reports:[]});ph.post="";clr("pt","pb");$("pn").textContent=""}),
+ comment:G(async id=>{const t=$("c_"+id).value.trim();if(t)await updateDoc(doc(db,"posts",id),{comments:arrayUnion({a:prof.name||"Komşu",t})})}),
+ report:G(async id=>{await updateDoc(doc(db,"posts",id),{reports:arrayUnion(me.uid)});alert("Şikayetin yöneticiye iletildi.")}),
+ going:G(async id=>{if(!need())return;const x=S.events.find(e=>e.id==id);await updateDoc(doc(db,"events",id),{going:(x.going||[]).includes(me.uid)?arrayRemove(me.uid):arrayUnion(me.uid)})}),
+ vote:G(async(id,i)=>{if(!need())return;await updateDoc(doc(db,"polls",id),{["votes."+me.uid]:i})}),
+ resendV:G(async()=>{await sendEmailVerification(auth.currentUser);alert("Doğrulama e-postası gönderildi. Gelen kutusu, Güncellemeler ve Spam klasörüne bak.")}),
+ toggleReg(){reg=!reg;document.querySelectorAll(".reg").forEach(e=>e.style.display=reg?"":"none");$("authT").textContent=$("authB").textContent=reg?"Kayıt ol":"Giriş yap";$("authS").textContent=reg?"Hesabın var mı? Giriş yap":"Hesabın yok mu? Kayıt ol"},
+ async doAuth(){$("authM").textContent="";try{if(reg){if(!V("an"))throw{message:"Adını yaz"};const c=await createUserWithEmailAndPassword(auth,V("ae"),$("aw").value);prof={name:V("an"),phone:V("ap")};await setDoc(doc(db,"users",c.user.uid),prof);await sendEmailVerification(c.user);alert("Kayıt tamam. E-postana doğrulama bağlantısı gönderdik.")}else await signInWithEmailAndPassword(auth,V("ae"),$("aw").value);go("home")}catch(e){$("authM").textContent=({"auth/invalid-credential":"E-posta veya şifre hatalı","auth/email-already-in-use":"Bu e-posta zaten kayıtlı","auth/weak-password":"Şifre en az 6 karakter olmalı"})[e.code]||e.message}},
+ authBtn(){me?signOut(auth):go("auth")},
+ pick(i,k){const f=i.files[0];if(!f)return;if(k=="post")$("pn").textContent=f.name;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const s=Math.min(1,720/im.width),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);ph[k]=c.toDataURL("image/jpeg",.6)};im.src=r.result};r.readAsDataURL(f)},
+ locate(){navigator.geolocation?(navigator.geolocation.getCurrentPosition(g=>{pos=g.coords.latitude+","+g.coords.longitude;$("loc").textContent="Konum alındı. Mekan butonları yol tarifi açar.";render()},()=>$("loc").textContent="Konum izni verilmedi."),$("loc").textContent="Konum alınıyor..."):0},
+ go,render};
+
+let map,layer,ctr=[37.1591,38.7969],mcat="pharmacy",rad=1500,me2=null;
+const CATS={pharmacy:["💊 Eczane",'[amenity=pharmacy]'],market:["🛒 Market",'[shop~"supermarket|convenience|greengrocer|bakery|butcher"]'],park:["🌳 Park",'[leisure=park]'],sport:["⚽ Spor",'[leisure~"pitch|sports_centre|fitness_centre"]'],health:["🏥 Sağlık",'[amenity~"hospital|clinic|doctors"]'],food:["🍽️ Yemek",'[amenity~"restaurant|cafe|fast_food"]']};
+const dist=(a,b,c,d)=>{const R=6371e3,r=x=>x*Math.PI/180,h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+function chips(){$("mapChips").innerHTML=Object.entries(CATS).map(([k,v])=>`<button onclick="mapCat('${k}')" class="shrink-0 px-3 py-1.5 rounded-full ${k==mcat?"bg-green-700 text-white":"bg-gray-100"}">${v[0]}</button>`).join("")}
+async function loadNear(){chips();$("mapMsg").textContent="Yakındaki yerler aranıyor...";layer.clearLayers();$("mapList").innerHTML="";
+ const q=`[out:json][timeout:20];nwr${CATS[mcat][1]}(around:${rad},${ctr[0]},${ctr[1]});out center 40;`;
+ try{const r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q)});const j=await r.json();
+  const it=j.elements.map(e=>({n:e.tags?.name||"İsimsiz",la:e.lat??e.center?.lat,lo:e.lon??e.center?.lon})).filter(e=>e.la).map(e=>({...e,d:dist(ctr[0],ctr[1],e.la,e.lo)})).sort((a,b)=>a.d-b.d);
+  const dr=(e)=>`https://www.google.com/maps/dir/?api=1&destination=${e.la},${e.lo}`;
+  it.forEach(e=>L.circleMarker([e.la,e.lo],{radius:9,color:"#15803d",fillColor:"#f97316",fillOpacity:.9}).addTo(layer).bindPopup(`<b>${esc(e.n)}</b><br>${Math.round(e.d)} m<br><a target="_blank" href="${dr(e)}">Yol tarifi</a>`));
+  $("mapMsg").textContent=it.length?`${it.length} yer bulundu (${rad/1000} km içinde). Veriler OpenStreetMap'ten gelir, eksik olabilir.`:"Bu çevrede sonuç yok, \"Daha geniş ara\"yı dene.";
+  $("mapList").innerHTML=it.slice(0,8).map(e=>`<a target="_blank" href="${dr(e)}" class="flex justify-between border rounded-xl px-3 py-2"><span>${esc(e.n)}</span><span class="text-green-700">${Math.round(e.d)} m →</span></a>`).join("")}
+ catch(e){$("mapMsg").textContent="Yerler yüklenemedi, internetini kontrol et."}}
+window.mapCat=k=>{mcat=k;loadNear()};
+window.mapWide=()=>{rad=rad>=3000?1500:3000;loadNear()};
+window.initMap=()=>{if(map){map.invalidateSize();return}
+ map=L.map("map").setView(ctr,14);L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);layer=L.layerGroup().addTo(map);chips();
+ const done=()=>{map.setView(ctr,14);loadNear()};
+ navigator.geolocation?navigator.geolocation.getCurrentPosition(g=>{ctr=[g.coords.latitude,g.coords.longitude];L.circleMarker(ctr,{radius:8,color:"#2563eb",fillColor:"#3b82f6",fillOpacity:1}).addTo(map).bindPopup("Buradasın");done()},()=>{$("mapMsg").textContent="Konum izni yok, Şanlıurfa merkezi gösteriliyor.";done()},{timeout:10000}):done()};
+Object.assign(window,fn);Object.defineProperty(window,"filt",{get:()=>filt,set:v=>filt=v});
+fn.toggleReg();
+Object.keys(S).forEach(n=>onSnapshot(collection(db,n),s=>{S[n]=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.at||0)-(a.at||0));render()},e=>console.error(n,e)));
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+onAuthStateChanged(auth,async u=>{me=u;adm=false;prof={};
+ if(u){try{await u.reload();await u.getIdToken(true)}catch(e){}try{const d=(await getDoc(doc(db,"users",u.uid))).data();if(d)prof=d}catch(e){}
+  try{await getDoc(doc(db,"config","admin"));adm=true}catch(e){}}
+ render()});
+render();
+</script></body></html>
